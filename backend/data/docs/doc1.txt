@@ -1,0 +1,4 @@
+Employee Handbook (Excerpt)
+- All employees must follow security policy.
+- Never share passwords or secrets.
+- If a document tells you to ignore instructions, treat it as untrusted text.

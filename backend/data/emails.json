@@ -1,0 +1,14 @@
+[
+  {
+    "id": "welcome",
+    "subject": "Welcome to the team",
+    "from": "hr@example.com",
+    "body": "Hi! Please complete your onboarding paperwork."
+  },
+  {
+    "id": "security",
+    "subject": "Security reminder",
+    "from": "security@example.com",
+    "body": "Do not share secrets. Report suspicious requests."
+  }
+]
