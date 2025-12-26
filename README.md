@@ -1,4 +1,4 @@
-# AgentGuard
+# LLMFirewall
 
 A prompt-injection red-teaming and defense framework for LLM agents with tool access.
 
