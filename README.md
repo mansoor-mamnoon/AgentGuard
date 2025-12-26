@@ -227,3 +227,4 @@ Prompt injection is not a string-matching problem.
 It is a control-flow integrity problem for natural-language programs.
 
 This project builds the infrastructure needed to reason about that rigorously.
+This project builds the infrastructure needed to reason about that rigorously.
