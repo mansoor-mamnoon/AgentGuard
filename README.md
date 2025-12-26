@@ -167,6 +167,28 @@ Trust metadata is preserved end-to-end and logged for every run.
 
 Before execution, the final prompt is rendered with explicit trust delimiters:
 
+BEGIN_SYSTEM
+...
+END_SYSTEM
+
+BEGIN_UNTRUSTED_USER
+...
+END_UNTRUSTED_USER
+
+BEGIN_UNTRUSTED_TOOL_OUTPUT
+...
+END_UNTRUSTED_TOOL_OUTPUT
+
+
+These delimiters make trust boundaries explicit to both the model and the surrounding runtime.  
+They form the foundation for detecting and preventing prompt injection, where untrusted content attempts to override system intent.
+
+This design treats prompt injection as a **control-flow integrity problem** rather than a string-matching problem.
+
+
+
+
+
 
 
 ## Key idea
