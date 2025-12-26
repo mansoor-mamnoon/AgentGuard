@@ -8,3 +8,6 @@ build/
 *.egg-info/
 .DS_Store
 runs/
+
+# Generated run logs
+runs/

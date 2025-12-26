@@ -185,6 +185,55 @@ They form the foundation for detecting and preventing prompt injection, where un
 
 This design treats prompt injection as a **control-flow integrity problem** rather than a string-matching problem.
 
+## Baseline Prompt-Injection Dataset + Replay Harness
+
+This repo includes a small but realistic **prompt-injection seed dataset** and an **evaluation runner** that replays attacks end-to-end through the agent runtime.
+
+### Dataset format (JSONL)
+Attacks live in `data/attacks_seed.jsonl` (one JSON object per line). Each case includes:
+- `attack_id`: unique identifier
+- `attack_type`: `direct`, `indirect_doc`, `tool_output`, or `multiturn`
+- `payload`: the injection text (or multi-turn script)
+- `target_task`: what the agent is supposed to do
+- `success_condition`: how an attack would be considered “successful”
+
+The dataset intentionally covers multiple injection channels:
+- **Direct**: user attempts to override system intent
+- **Indirect (RAG)**: malicious instructions embedded inside retrieved documents
+- **Tool output**: logs/HTML/JSON responses containing instruction-like text
+- **Multi-turn**: gradual escalation across turns
+
+### Generate the seed dataset
+```bash
+uv run python -m eval.generate_seed_dataset
+```
+
+### Replay attacks end-to-end
+
+
+```bash
+uv run python -m eval.run --dataset data/attacks_seed.jsonl
+```
+
+Each case produces a structured run log under runs/<run_id>.jsonl, including:
+
+- the case metadata
+
+- trust-tagged segments (trusted system vs untrusted contexts)
+
+- the rendered prompt with explicit delimiters
+
+- the agent’s decision and any tool calls
+
+This provides a reproducible baseline for measuring defenses (e.g., attack success rate) as the project evolves.
+
+
+
+
+
+
+
+
 
 
 
