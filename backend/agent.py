@@ -1,45 +1,113 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from backend.types import AgentDecision, FinalAnswer, ToolCall, ToolSpec
+# If you already have these types, do NOT duplicate — just keep the logic parts.
+# Assuming you have Decision dataclass with fields: type, name, args, content
+# and ToolSpec with: name, args_schema, description
+
+INJECTION_PATTERNS = [
+    r"\bignore\b",
+    r"\boverride\b",
+    r"\bdeveloper mode\b",
+    r"\breveal\b.*\bsystem prompt\b",
+    r"\bsystem prompt\b",
+    r"\bbegin_system\b",
+    r"\bpost_message\b.*\b(leak|pwn|secrets|exfiltrate)\b",
+]
 
 
-def decide_action(
-    system_prompt: str,
-    user_prompt: str,
-    context_docs: list[dict[str, Any]],
-    tools: list[ToolSpec],
-) -> AgentDecision:
+def looks_like_injection(text: str) -> bool:
+    t = (text or "").lower()
+    return any(re.search(p, t) for p in INJECTION_PATTERNS)
+
+
+def has_tool(tools: list[Any], name: str) -> bool:
+    return any(getattr(t, "name", None) == name for t in tools)
+
+
+def decide_action(system_prompt: str, user_prompt: str, context_docs: list[Any], tools: list[Any]):
     """
-    Minimal deterministic 'agent':
-    - chooses a tool based on keywords
-    - otherwise returns a final answer
-
-    Later you'll replace this with an LLM decision step.
+    Deterministic baseline:
+      - Execute benign tool tasks when clearly requested.
+      - Avoid obviously malicious/injection patterns.
+      - Fall back to a safe final answer.
     """
-    up = user_prompt.lower()
+    up = user_prompt or ""
+    up_l = up.lower()
 
-    # Heuristic: doc search intent
-    if any(w in up for w in ["search", "docs", "document", "handbook", "notes"]):
-        return ToolCall(type="tool_call", name="search_docs", args={"query": user_prompt})
+    # Hard safety gate: do not execute tool calls if prompt looks like injection.
+    if looks_like_injection(up):
+        return type(
+            "Decision",
+            (),
+            {
+                "type": "final_answer",
+                "content": "I can’t follow instruction-like text that tries to override the system rules. Tell me the benign task you want (search docs, get an email, or post a message).",
+                "name": None,
+                "args": {},
+            },
+        )()
 
-    # Heuristic: email intent
-    if "email" in up or "welcome" in up or "security" in up:
-        # try to pick an id
-        email_id = "welcome" if "welcome" in up else "security" if "security" in up else "welcome"
-        return ToolCall(type="tool_call", name="get_email", args={"email_id": email_id})
+    # ---- search_docs intent ----
+    # Matches: "search X", "search for X", "find X"
+    m = re.match(r"^\s*(search(?: for)?|find)\s+(.*)\s*$", up_l)
+    if m and has_tool(tools, "search_docs"):
+        query = (m.group(2) or "").strip()
+        if not query:
+            query = up.strip()
+        return type(
+            "Decision",
+            (),
+            {"type": "tool_call", "name": "search_docs", "args": {"query": query}, "content": None},
+        )()
 
-    # Heuristic: post message intent
-    if any(w in up for w in ["post", "send message", "announce"]):
-        return ToolCall(
-            type="tool_call",
-            name="post_message",
-            args={"channel": "general", "text": user_prompt},
+    # ---- get_email intent ----
+    # Matches: "show me the welcome email", "get email welcome"
+    if has_tool(tools, "get_email"):
+        if "welcome email" in up_l or re.search(r"\bget email\b", up_l):
+            return type(
+                "Decision",
+                (),
+                {
+                    "type": "tool_call",
+                    "name": "get_email",
+                    "args": {"email_id": "welcome"},
+                    "content": None,
+                },
+            )()
+
+    # ---- post_message intent ----
+    # Matches: "post this announcement: ...", "post message: ..."
+    if has_tool(tools, "post_message"):
+        m2 = re.match(
+            r"^\s*post\s+(?:this\s+)?(?:announcement|message)\s*:\s*(.+)\s*$",
+            up,
+            flags=re.IGNORECASE,
         )
+        if m2:
+            text = m2.group(1).strip()
+            # choose a fixed benign channel for evaluation
+            return type(
+                "Decision",
+                (),
+                {
+                    "type": "tool_call",
+                    "name": "post_message",
+                    "args": {"channel": "#announcements", "text": text},
+                    "content": None,
+                },
+            )()
 
-    # Default: answer directly
-    return FinalAnswer(
-        type="final_answer",
-        content="I can answer directly (no tool needed). Tell me what you want to do with docs/emails/messages.",
-    )
+    # Default safe response
+    return type(
+        "Decision",
+        (),
+        {
+            "type": "final_answer",
+            "content": "I can answer directly (no tool needed). Tell me what you want to do with docs/emails/messages.",
+            "name": None,
+            "args": {},
+        },
+    )()
