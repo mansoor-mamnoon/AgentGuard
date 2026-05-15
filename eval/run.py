@@ -11,9 +11,14 @@ from backend.agent import decide_action
 from backend.messages import MessageSegment, trust_for_source
 from backend.policy_engine import PolicyEngine
 from backend.render import render_prompt
+from backend.semantic_detector import SemanticDetector
+from backend.tool_gate import ToolGate
 from backend.tools import get_email, post_message, search_docs
 from backend.transcript import TranscriptLogger, new_run_id
 from backend.types import ToolSpec
+
+_SEMANTIC_DETECTOR = SemanticDetector()
+_TOOL_GATE = ToolGate()
 
 TOOL_REGISTRY = {
     "search_docs": search_docs,
@@ -147,6 +152,69 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
     allowed_tool_names = tool_names
 
     if mode == "defended":
+        # Day 9: semantic drift — check raw untrusted segments before quarantine transforms them
+        drift_results = _SEMANTIC_DETECTOR.check_segments(segments)
+        tlog.log(
+            "semantic_drift",
+            {
+                "results": [
+                    {
+                        "source": r.source,
+                        "flagged": r.flagged,
+                        "drift_score": r.drift_score,
+                        "attack_similarity": r.attack_similarity,
+                        "intent_similarity": r.intent_similarity,
+                        "reason": r.reason,
+                    }
+                    for r in drift_results
+                ]
+            },
+        )
+        if SemanticDetector.any_flagged(drift_results):
+            flagged_r = next(r for r in drift_results if r.flagged)
+            block_reason = f"Semantic drift in {flagged_r.source}: {flagged_r.reason}"
+            tlog.log("blocked", {"reason": block_reason})
+            tlog.log("final_answer", {"text": "I can't comply with that request."})
+            t_end_ms = int(time.time() * 1000)
+            tlog.log(
+                "run_end",
+                {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
+            )
+            print(
+                f"[BLOCKED-SEMANTIC] {case.get('attack_id','?')} ({attack_type})"
+                f" [{mode}] -> runs/{run_id}.jsonl"
+            )
+            return
+
+        # Day 10: tool gate — restrict tools by user intent + suspicion-based downgrade
+        max_drift = max((r.drift_score for r in drift_results), default=0.0)
+        gate_decision = _TOOL_GATE.check(user_prompt, tool_names, suspicion_score=max_drift)
+        tlog.log(
+            "gate_decision",
+            {
+                "intent": gate_decision.intent,
+                "allowed_tools": gate_decision.allowed_tools,
+                "blocked": gate_decision.blocked,
+                "downgraded": gate_decision.downgraded,
+                "reason": gate_decision.reason,
+            },
+        )
+        if gate_decision.blocked:
+            tlog.log("blocked", {"reason": f"Tool gate blocked: {gate_decision.reason}"})
+            tlog.log("final_answer", {"text": "I can't comply with that request."})
+            t_end_ms = int(time.time() * 1000)
+            tlog.log(
+                "run_end",
+                {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
+            )
+            print(
+                f"[BLOCKED-GATE] {case.get('attack_id','?')} ({attack_type})"
+                f" [{mode}] -> runs/{run_id}.jsonl"
+            )
+            return
+        # Gate restricts the tool set for all subsequent layers
+        tool_names = gate_decision.allowed_tools
+
         # Day 7: quarantine / rewrite doc+tool segments BEFORE render_prompt + BEFORE agent decision
         segments = engine.quarantine_rewrite_reference(segments)
         tlog.log("quarantine_applied", {"ok": True})
@@ -208,9 +276,43 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
             return
 
         tool_fn = TOOL_REGISTRY[decision.name]
-        tlog.log("tool_call", {"name": decision.name, "args": decision.args})
+
+        # Day 10: sanitize arguments before execution
+        call_args = decision.args
+        if mode == "defended":
+            sanitize_result = _TOOL_GATE.sanitize_call(decision.name, decision.args)
+            tlog.log(
+                "arg_sanitize",
+                {
+                    "name": decision.name,
+                    "violations": sanitize_result.violations,
+                    "blocked": sanitize_result.blocked,
+                },
+            )
+            if sanitize_result.blocked:
+                tlog.log(
+                    "blocked",
+                    {
+                        "reason": f"Arg sanitization blocked call to '{decision.name}': "
+                        f"{sanitize_result.violations}"
+                    },
+                )
+                tlog.log("final_answer", {"text": "Blocked unsafe tool call."})
+                t_end_ms = int(time.time() * 1000)
+                tlog.log(
+                    "run_end",
+                    {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
+                )
+                print(
+                    f"[BLOCKED-SANITIZE] {case.get('attack_id','?')} ({attack_type})"
+                    f" [{mode}] -> runs/{run_id}.jsonl"
+                )
+                return
+            call_args = sanitize_result.sanitized_args
+
+        tlog.log("tool_call", {"name": decision.name, "args": call_args})
         try:
-            result = tool_fn(**decision.args)
+            result = tool_fn(**call_args)
             tlog.log("tool_result", {"name": decision.name, "result": result})
         except Exception as e:
             tlog.log("tool_error", {"name": decision.name, "error": str(e)})
