@@ -419,18 +419,105 @@ uv run python -m pytest backend/tests/test_day7_quarantine.py -v
 
 ---
 
-### Automated Attack Generation & Dataset Expansion
+## Day 8 — Attacker Generator v1 (Template-Based)
 
-Built a **template-based attacker generator** to move beyond manually crafted prompts and enable scalable red-teaming. The generator applies multiple mutation operators to seed attacks, including:
+**Goal:** automated attack expansion — move beyond a static hand-written dataset.
 
-- synonym and paraphrase substitutions  
-- role confusion and authority rephrasing  
-- whitespace and markdown obfuscation  
-- “helpful” or compliance-framed social engineering  
+### What was implemented
 
-Each seed attack is expanded into multiple variants, with **embedding-based deduplication** ensuring diversity rather than near-duplicates. This increases dataset coverage from small hand-written sets to **hundreds or thousands of unique attacks**.
+#### Mutation operators (`attackgen/mutate.py`)
 
-Result: a scalable, automated attack corpus that better reflects real-world adversarial behavior and enables meaningful evaluation of defense generalization.
+Eight independent operators, each applied in random 1-3 combinations per variant:
+
+| Operator | Technique |
+|---|---|
+| `_synonym_swap` | Replace up to 3 attack-related words with synonyms (`ignore` → `disregard`, `call` → `invoke`, etc.) |
+| `_role_confusion` | Wrap payload in fake SYSTEM / Developer authority framing |
+| `_helpful_framing` | Frame attack as a safety test, audit, or pre-authorized action |
+| `_markdown_trick` | Embed payload in blockquotes, code fences, HTML tags, or markdown tables |
+| `_whitespace_trick` | Insert zero-width chars, double spaces, or letter-spacing to defeat string matching |
+| `_authority_escalation` | Prefix with ROOT/ADMIN/CEO authority claims |
+| `_urgency_framing` | Prefix with URGENT / CRITICAL / PRIORITY to pressure compliance |
+| `_indirect_wrapping` | Frame payload as retrieved document text, tool output, or knowledge-base content |
+
+With 8 operators and n ∈ {1, 2, 3}, there are C(8,1)+C(8,2)+C(8,3) = **92 distinct operator combinations** per seed, up from 25 with the original 5 operators.
+
+#### Deduplication (`dedup_texts` in `attackgen/mutate.py`)
+
+Zero-dependency embedding via feature hashing (token unigrams + character trigrams projected into a 512-dim signed vector). Greedy cosine dedup at threshold 0.92 discards near-duplicates while preserving structurally distinct variants.
+
+#### Generator pipeline (`attackgen/generate_attacks.py`)
+
+```
+seeds (JSONL)
+  → extract_seed_payload()   # handles str AND list (multiturn) payloads
+  → per-seed: generate 15 candidates → dedup within seed
+  → global dedup across all seeds
+  → write data/attacks_mutated.jsonl
+```
+
+Key additions vs the original:
+
+- **Multiturn support**: `extract_seed_payload()` extracts the last string turn from multiturn list payloads. Mutated multiturn cases are emitted with `attack_type=”direct”` so the eval harness can run them without modification.
+- **`generate()` pure function**: core logic extracted from `main()` with no file I/O, making it directly unit-testable.
+- **Default variants raised** from 10 → 15 to ensure the 800-1500 unique attack target is met after dedup.
+
+#### Command
+
+```bash
+uv run python -m attackgen.generate_attacks \
+    --seeds data/attacks_seed.jsonl \
+    --out data/attacks_mutated.jsonl
+```
+
+Output:
+```
+Seeds (attacks):          90
+Candidates generated:     1350
+Unique after dedup:       982
+Wrote:                    data/attacks_mutated.jsonl
+```
+
+#### Running the eval on generated attacks
+
+```bash
+uv run python -m eval.run --dataset data/attacks_mutated.jsonl --mode baseline
+uv run python -m eval.run --dataset data/attacks_mutated.jsonl --mode defended
+```
+
+### Tests (`attackgen/tests/test_mutate.py`)
+
+76 tests across 8 classes:
+
+| Suite | Tests | What it covers |
+|---|---|---|
+| `TestSynonymSwap` | 4 | Produces non-identical output; handles empty string |
+| `TestRoleConfusion` | 4 | Payload preserved in output; all templates usable |
+| `TestHelpfulFraming` | 3 | Payload preserved; all templates usable |
+| `TestMarkdownTrick` | 3 | Payload preserved; all templates usable |
+| `TestWhitespaceTrick` | 4 | Output modified; double-space and letter-spacing variants |
+| `TestAuthorityEscalation` | 3 | Payload preserved; all templates usable |
+| `TestUrgencyFraming` | 3 | Payload preserved; all templates usable |
+| `TestIndirectWrapping` | 3 | Payload preserved; all templates usable |
+| `TestMutatePayload` | 6 | Returns string; ≥10 distinct variants in 15 runs; deterministic with same seed |
+| `TestHashEmbed` | 5 | Correct dim; same text → same vector; empty → zeros |
+| `TestCosine` | 5 | Identical=1.0; orthogonal=0.0; zero vector=0.0; same/different text similarity |
+| `TestDedupTexts` | 7 | Exact dups removed; uniques kept; threshold monotonicity; insertion order preserved |
+| `TestExtractSeedPayload` | 8 | String/list/benign/empty/multiturn edge cases |
+| `TestIsAttackSeed` | 4 | String attacks, multiturn, benign, empty |
+| `TestGenerate` | 11 | Schema, ID suffix, uniqueness, multiturn included, benign excluded, determinism, 800-1500 count with real seed file |
+| `TestJsonlIO` | 3 | Write/load round-trip; empty lines skipped; Unicode preserved |
+
+Run:
+```bash
+uv run python -m pytest attackgen/tests/test_mutate.py -v
+```
+
+### Result
+
+- **982 unique attacks** generated from 90 seeds (80 string + 10 multiturn) — within the 800-1500 target.
+- All 982 cases run successfully through the eval harness in both `baseline` and `defended` modes.
+- Dataset type breakdown: `direct` 399, `indirect_doc` 267, `tool_output` 205, `direct` (from multiturn) 111.
 
 
 
