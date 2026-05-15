@@ -26,3 +26,4 @@ target-version = ["py311"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "runtime_guard/tests", "eval/tests"]
+pythonpath = ["."]
