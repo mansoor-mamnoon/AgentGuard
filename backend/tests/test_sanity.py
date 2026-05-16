@@ -1,6 +1,7 @@
-from prompt_injection_lab.version import __version__
+from importlib.metadata import version
 
 
 def test_version_exists():
-    assert isinstance(__version__, str)
-    assert __version__.count(".") == 2
+    v = version("llmfirewall")
+    assert isinstance(v, str)
+    assert v.count(".") == 2

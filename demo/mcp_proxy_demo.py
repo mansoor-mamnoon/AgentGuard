@@ -354,10 +354,10 @@ def _render_scenario(i: int, s: Scenario, fw: MCPFirewall) -> None:
 def _print_header() -> None:
     print(
         f"""
-{_BOLD}{'═' * 72}
+{_BOLD}{"═" * 72}
   LLMFirewall — MCP Security Proxy Demo
   Seven enforcement layers, zero external model calls
-{'═' * 72}{_RESET}
+{"═" * 72}{_RESET}
 
 Architecture:
   Claude / Cursor / custom agent

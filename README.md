@@ -29,6 +29,26 @@ Also ships as a standalone prompt-injection defense framework evaluated on **4,2
 
 ---
 
+## Install
+
+```bash
+pip install llmfirewall
+llmfirewall init                           # writes policies/default.yaml + policies/strict.yaml
+llmfirewall proxy \
+  --upstream "mcp-server-filesystem ./docs" \
+  --allow-tools read_file,list_files \
+  --policy policies/default.yaml
+```
+
+That's it. Your MCP client (Claude Desktop, Cursor, any custom agent) talks to the proxy; the real server never sees unguarded traffic.
+
+**Integration guides:**
+- [Claude Desktop](docs/integrations/claude_desktop.md) — drop-in `claude_desktop_config.json` snippet
+- [Cursor](docs/integrations/cursor.md) — drop-in `.cursor/mcp.json` snippet
+- [Custom Python agent](docs/integrations/custom_stdio_agent.md) — `ProxyClient` class, sync and async
+
+---
+
 ## Results at a Glance
 
 ### Benchmark suite (4,200+ cases, five attack families)
@@ -87,6 +107,16 @@ Adaptations evade individual layers — the paper trail shows which layer each a
 
 ## Quickstart
 
+### Running the proxy
+
+```bash
+pip install llmfirewall
+llmfirewall init
+llmfirewall proxy --upstream "mcp-server-filesystem ./docs" --allow-tools read_file,list_files
+```
+
+### Reproducing benchmarks and tests
+
 ```bash
 git clone <repo> && cd prompt-injection-lab
 uv sync
@@ -123,34 +153,41 @@ Every MCP method is covered: `tools/call` (outbound enforcement), `tools/list` (
 ### Run the proxy
 
 ```bash
+# Generate a policy for your project (creates policies/default.yaml + policies/strict.yaml)
+llmfirewall init
+
 # In front of any MCP server
-python -m mcp_proxy \
+llmfirewall proxy \
   --upstream "python -m my_mcp_server" \
   --allow-tools search_docs,read_email,read_calendar,post_slack \
-  --policy backend/policies/default.yaml
+  --policy policies/default.yaml
 
 # Filesystem server
-python -m mcp_proxy \
+llmfirewall proxy \
   --upstream "mcp-server-filesystem ./sandbox" \
   --allow-tools read_file,list_files \
   --audit-log audit.jsonl
 
 # Git server
-python -m mcp_proxy \
+llmfirewall proxy \
   --upstream "mcp-server-git ./repo" \
   --allow-tools git_log,git_diff
 
 # SQLite server
-python -m mcp_proxy \
+llmfirewall proxy \
   --upstream "python -m mcp_server_sqlite db.sqlite" \
   --allow-tools query,list_tables
 
 # With write confirmation (human-in-the-loop for write tools)
-python -m mcp_proxy \
+llmfirewall proxy \
   --upstream "python -m my_mcp_server" \
   --allow-tools search_docs,read_email \
   --require-write-confirm
 ```
+
+`python -m mcp_proxy [flags]` still works as a backward-compatible alias.
+
+See the integration guides for ready-to-paste configs: [Claude Desktop](docs/integrations/claude_desktop.md) · [Cursor](docs/integrations/cursor.md) · [Custom agent](docs/integrations/custom_stdio_agent.md)
 
 ### Real traces
 
