@@ -1,0 +1,68 @@
+[
+  {
+    "config": "no_defense",
+    "description": "No defense \u2014 always allow",
+    "asr": 1.0,
+    "fpr": 0.0,
+    "tdr": 1.0,
+    "chosen_threshold": 1.0,
+    "p95_ms": 0.0,
+    "n_benign": 12,
+    "n_attacks": 50
+  },
+  {
+    "config": "regex_only",
+    "description": "Heuristic (regex denylist) only",
+    "asr": 0.2,
+    "fpr": 0.0,
+    "tdr": 1.0,
+    "chosen_threshold": 0.0,
+    "p95_ms": 0.29,
+    "n_benign": 12,
+    "n_attacks": 50
+  },
+  {
+    "config": "no_doc",
+    "description": "Heuristic + semantic + gate (doc density removed)",
+    "asr": 0.16,
+    "fpr": 0.0833,
+    "tdr": 0.9167,
+    "chosen_threshold": 0.04,
+    "p95_ms": 0.3,
+    "n_benign": 12,
+    "n_attacks": 50
+  },
+  {
+    "config": "no_gate",
+    "description": "Heuristic + semantic + doc density (tool gate removed)",
+    "asr": 0.16,
+    "fpr": 0.0833,
+    "tdr": 0.9167,
+    "chosen_threshold": 0.04,
+    "p95_ms": 0.29,
+    "n_benign": 12,
+    "n_attacks": 50
+  },
+  {
+    "config": "no_semantic",
+    "description": "Heuristic + gate + doc density (semantic drift removed)",
+    "asr": 0.2,
+    "fpr": 0.0,
+    "tdr": 1.0,
+    "chosen_threshold": 0.0,
+    "p95_ms": 0.29,
+    "n_benign": 12,
+    "n_attacks": 50
+  },
+  {
+    "config": "full",
+    "description": "All four signal layers (default configuration)",
+    "asr": 0.16,
+    "fpr": 0.0833,
+    "tdr": 0.9167,
+    "chosen_threshold": 0.04,
+    "p95_ms": 0.29,
+    "n_benign": 12,
+    "n_attacks": 50
+  }
+]
