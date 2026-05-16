@@ -1127,6 +1127,117 @@ uv run python -m pytest eval/tests/test_day13_attack_gen.py -v
 - Full pipeline verified end-to-end with self-play rounds.
 
 
+## Day 14 — Defense v2: Combined Signal Scoring + Threshold Calibration
+
+### Goal
+
+Stop adaptive attacks (that evade individual detectors) by fusing four evidence layers into a single calibrated score.
+
+### Architecture
+
+```
+heuristic_score  (regex denylist)       × 0.40
+semantic_drift   (SemanticDetector)     × 0.35
+tool_violation   (ToolGate downgrade)   × 0.15
+doc_density      (doc instruction %)    × 0.10
+─────────────────────────────────────────────────
+combined = clamp(weighted_sum, 0.0, 1.0)
+```
+
+**Calibration**: Sweep threshold t over [0.0 … 1.0] in 51 steps.  For each t compute:
+- `FPR(t)` = fraction of benign turns scored above t
+- `ASR(t)` = fraction of attacks scored below t (attack success rate)
+
+Choose t* = smallest t satisfying FPR(t) ≤ fpr_budget (default 0.15).
+
+### Calibration result (built-in validation set)
+
+| Metric | Value |
+|---|---|
+| Chosen threshold | 0.040 |
+| FPR at threshold | 8.3% |
+| ASR at threshold | 15% |
+| FPR budget | 15% |
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `backend/defense_v2.py` | `DefenseV2`, `DefenseV2Signals`, `CalibrationResult` |
+| `eval/calibrate_thresholds.py` | CLI calibration script, saves `data/calibration_report.json` |
+| `backend/tests/test_day14_defense_v2.py` | 44 tests covering all signal layers and calibration |
+
+### Run
+
+```bash
+uv run python -m eval.calibrate_thresholds \
+    --dataset data/attacks_v2.jsonl \
+    --benign  data/benign.jsonl \
+    --output  data/calibration_report.json \
+    --fpr_budget 0.15
+uv run python -m pytest backend/tests/test_day14_defense_v2.py -v
+```
+
+### Result
+
+- **466/466 total tests pass** (all days).
+- Calibration report saved with full validation curve.
+- FPR held to 8.3% (within the 15% budget); ASR 15% on validation set.
+
+
+## Day 15 — Evaluation Dashboard
+
+### Goal
+
+A polished artifact showing every run's prompt segments, detector flags, and policy actions — the thing that "screams real system."
+
+### Architecture
+
+**FastAPI application** (`backend/api.py`):
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Liveness check |
+| `GET /runs` | List all runs with summary stats (total cases, blocked, ASR) |
+| `GET /runs/{run_id}` | Full detail — all cases with per-turn detector flags + restriction levels |
+| `GET /metrics` | Aggregate metrics across all runs + calibration summary |
+| `GET /report` | Self-contained HTML dashboard served inline |
+
+**HTML dashboard** (`backend/html_report.py`):
+- Summary panel: total runs, cases, ASR, TDR
+- Calibration curve table (chosen threshold highlighted)
+- Clickable run list → slide-in detail panel
+- Detail panel: per-turn user text, restriction level, detector flags (semantic drift, regex, gate), allowed tools
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `backend/api.py` | FastAPI app with 5 endpoints |
+| `backend/html_report.py` | Self-contained HTML dashboard generator |
+| `backend/tests/test_day15_api.py` | 45 tests via `TestClient` |
+
+### Run
+
+```bash
+# Start the API server
+uv run uvicorn backend.api:app --reload
+
+# Open the dashboard
+open http://127.0.0.1:8000/report
+
+# Or run the test suite
+uv run python -m pytest backend/tests/test_day15_api.py -v
+```
+
+### Result
+
+- **511/511 total tests pass** (all days).
+- All 5 API endpoints verified: health, list, detail, metrics, HTML report.
+- Clicking a run surfaces prompt text, restriction level, and all three detector flags per turn.
+- Missing calibration file handled gracefully (metrics returns `calibration: null`).
+
+
 ## Key idea
 
 Prompt injection is not a string-matching problem.
