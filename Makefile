@@ -1,5 +1,6 @@
-.PHONY: install test lint format eval calibrate ablation report all clean \
-        benchmarks bench demo baselines gate-ablation adaptive-redteam
+.PHONY: install test test-integration lint format eval calibrate ablation report all clean \
+        benchmarks bench demo baselines gate-ablation adaptive-redteam \
+        mcp-demo mcp-proxy
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,15 @@ demo-all:
 
 mcp-demo:
 	uv run python -m demo.mcp_proxy_demo
+
+# Run the real MCP proxy (requires --upstream arg)
+# Example: make mcp-proxy UPSTREAM="python -m integration.servers.filesystem_server ./sandbox"
+mcp-proxy:
+	uv run python -m mcp_proxy --upstream "$(UPSTREAM)" $(PROXY_FLAGS)
+
+# Integration tests (real proxy + real servers)
+test-integration:
+	uv run pytest -q integration/
 
 # ── Legacy evaluation pipeline ────────────────────────────────────────────────
 

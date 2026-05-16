@@ -31,5 +31,5 @@ line-length = 100
 target-version = ["py311"]
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests", "runtime_guard/tests", "eval/tests", "attackgen/tests"]
+testpaths = ["backend/tests", "runtime_guard/tests", "eval/tests", "attackgen/tests", "integration"]
 pythonpath = ["."]
