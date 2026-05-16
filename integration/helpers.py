@@ -11,12 +11,15 @@ blocking the test process forever on a hanging proxy.
 from __future__ import annotations
 
 import json
+import pathlib
 import queue
 import subprocess
 import sys
 import threading
 import time
 from typing import Any
+
+_REPO_ROOT = pathlib.Path(__file__).parent.parent
 
 
 class MCPError(Exception):
@@ -70,7 +73,7 @@ class ProxyHarness:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd="/Users/muneermamnoon/prompt-injection-lab",
+            cwd=str(_REPO_ROOT),
         )
         self._id = 0
         self._notifications: list[dict] = []
