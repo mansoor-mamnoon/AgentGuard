@@ -265,7 +265,7 @@ def main() -> None:
         if result.any_blocked:
             blocked_count += 1
 
-    print(f"\nMulti-turn ASR blocked: {blocked_count}/{total} = {blocked_count/total:.0%}")
+    print(f"\nMulti-turn ASR blocked: {blocked_count}/{total} = {blocked_count / total:.0%}")
     print(f"Mode: {args.mode}")
 
 

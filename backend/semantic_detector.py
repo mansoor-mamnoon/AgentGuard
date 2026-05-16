@@ -33,8 +33,12 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from backend.messages import MessageSegment
+
+if TYPE_CHECKING:
+    from backend.embed_cache import EmbedCache
 
 # ── Anchors ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +150,7 @@ class SemanticDetector:
         attack_archetypes: list[str] | None = None,
         threshold: float = 0.07,
         embed_dim: int = 512,
+        cache: EmbedCache | None = None,
     ) -> None:
         if attack_archetypes is None:
             attack_archetypes = DEFAULT_ATTACK_ARCHETYPES
@@ -153,15 +158,24 @@ class SemanticDetector:
         self.attack_archetypes = list(attack_archetypes)
         self.threshold = threshold
         self.embed_dim = embed_dim
+        self.cache = cache
 
-        self._intent_embed = _stable_embed(system_intent, embed_dim)
-        self._archetype_embeds = [_stable_embed(a, embed_dim) for a in self.attack_archetypes]
+        self._intent_embed = self._embed(system_intent)
+        self._archetype_embeds = [self._embed(a) for a in self.attack_archetypes]
+
+    # ── internal helpers ──────────────────────────────────────────────────────
+
+    def _embed(self, text: str) -> list[float]:
+        """Compute embedding, using cache if one is attached."""
+        if self.cache is not None:
+            return self.cache.get_or_compute(text, self.embed_dim, _stable_embed)
+        return _stable_embed(text, self.embed_dim)
 
     # ── public API ────────────────────────────────────────────────────────────
 
     def check(self, text: str, source: str = "input") -> DriftResult:
         """Score a single text for semantic drift from system intent."""
-        te = _stable_embed(text, self.embed_dim)
+        te = self._embed(text)
         # Clamp to [0, 1]: negative cosine means "opposite direction" — treat as 0 signal.
         intent_sim = max(0.0, _cosine(self._intent_embed, te))
         attack_sim = max(0.0, max(_cosine(ae, te) for ae in self._archetype_embeds))
@@ -184,6 +198,15 @@ class SemanticDetector:
             threshold=self.threshold,
             reason=reason,
         )
+
+    def batch_check(self, texts: list[str], source: str = "input") -> list[DriftResult]:
+        """
+        Score multiple texts for drift in a single call.
+
+        Embeddings are computed (and cached) up-front before scoring, so
+        repeated texts only pay the SHA-256 cost once.
+        """
+        return [self.check(text, source=source) for text in texts]
 
     def check_segments(self, segments: list[MessageSegment]) -> list[DriftResult]:
         """Check all non-system segments for drift."""

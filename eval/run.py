@@ -181,7 +181,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
                 {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
             )
             print(
-                f"[BLOCKED-SEMANTIC] {case.get('attack_id','?')} ({attack_type})"
+                f"[BLOCKED-SEMANTIC] {case.get('attack_id', '?')} ({attack_type})"
                 f" [{mode}] -> runs/{run_id}.jsonl"
             )
             return
@@ -208,7 +208,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
                 {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
             )
             print(
-                f"[BLOCKED-GATE] {case.get('attack_id','?')} ({attack_type})"
+                f"[BLOCKED-GATE] {case.get('attack_id', '?')} ({attack_type})"
                 f" [{mode}] -> runs/{run_id}.jsonl"
             )
             return
@@ -233,7 +233,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
                 "run_end", {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms}
             )
             print(
-                f"[BLOCKED] {case.get('attack_id','?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl"
+                f"[BLOCKED] {case.get('attack_id', '?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl"
             )
             return
 
@@ -271,7 +271,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
                 "run_end", {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms}
             )
             print(
-                f"[BLOCKED] {case.get('attack_id','?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl"
+                f"[BLOCKED] {case.get('attack_id', '?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl"
             )
             return
 
@@ -304,7 +304,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
                     {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms},
                 )
                 print(
-                    f"[BLOCKED-SANITIZE] {case.get('attack_id','?')} ({attack_type})"
+                    f"[BLOCKED-SANITIZE] {case.get('attack_id', '?')} ({attack_type})"
                     f" [{mode}] -> runs/{run_id}.jsonl"
                 )
                 return
@@ -323,7 +323,7 @@ def run_single_case(case: dict[str, Any], mode: str) -> None:
     )
     t_end_ms = int(time.time() * 1000)
     tlog.log("run_end", {"attack_id": case.get("attack_id", ""), "mode": mode, "ts_ms": t_end_ms})
-    print(f"[OK] {case.get('attack_id','?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl")
+    print(f"[OK] {case.get('attack_id', '?')} ({attack_type}) [{mode}] -> runs/{run_id}.jsonl")
 
 
 def main() -> None:

@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from backend.html_report import generate_html_report
+from backend.schemas import MetricsResponse, RunDetail, RunSummary
 
 app = FastAPI(title="LLMFirewall Dashboard", version="1.0.0")
 
@@ -108,14 +109,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/runs")
+@app.get("/runs", response_model=list[RunSummary])
 def list_runs() -> list[dict[str, Any]]:
     """List all evaluation runs with summary statistics."""
     runs = _load_runs()
     return [_summarise_run(r) for r in runs]
 
 
-@app.get("/runs/{run_id}")
+@app.get("/runs/{run_id}", response_model=RunDetail)
 def get_run(run_id: str) -> dict[str, Any]:
     """
     Return full detail for a single run: all cases with per-turn detector
@@ -150,12 +151,19 @@ def get_run(run_id: str) -> dict[str, Any]:
     }
 
 
-@app.get("/metrics")
+@app.get("/metrics", response_model=MetricsResponse)
 def get_metrics() -> dict[str, Any]:
     """Aggregate metrics across all runs."""
     runs = _load_runs()
     if not runs:
-        return {"total_runs": 0, "total_cases": 0, "overall_asr": None}
+        return {
+            "total_runs": 0,
+            "total_cases": 0,
+            "total_blocked": 0,
+            "overall_asr": None,
+            "per_run": [],
+            "calibration": None,
+        }
 
     total_cases = 0
     total_blocked = 0

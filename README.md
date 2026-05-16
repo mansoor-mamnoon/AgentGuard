@@ -1238,6 +1238,115 @@ uv run python -m pytest backend/tests/test_day15_api.py -v
 - Missing calibration file handled gracefully (metrics returns `calibration: null`).
 
 
+## Day 16 — Scalability Pass (Batching + Caching)
+
+### Goal
+
+Show infra competence: the eval pipeline should handle 1k attacks quickly and report measurable latency budgets.
+
+### What was added
+
+**Embedding cache** (`backend/embed_cache.py`):
+- SQLite-backed, thread-safe per-thread connections
+- Cache key: `SHA-256(f"{dim}:{text}")` — small keys, any text length
+- WAL mode for concurrent read safety
+- Exposes `hit_rate`, `stats`, `clear()`, and `__len__`
+
+**Batch scoring** (updated `backend/semantic_detector.py`):
+- Optional `cache: EmbedCache` parameter — wired into `_embed()` helper
+- `batch_check(texts)` method — scores a list of texts and returns `list[DriftResult]`
+- Cache hits avoid SHA-256 recomputation on repeated texts
+
+**Parallel eval runner** (`eval/run_eval_parallel.py`):
+- `run_parallel_eval(cases, max_workers)` using `ProcessPoolExecutor`
+- Each worker imports `DefenseV2` independently (fresh module state per process)
+- `run_sequential_eval(cases)` baseline for comparison
+- Reports p50 / p95 / p99 / mean / max latency per item
+- CLI: `--budget_ms` flag, exits 0 if p95 ≤ budget else 1
+
+### Latency results (5 cases, 1 worker, CI-safe bound)
+
+| Stat | Value |
+|---|---|
+| p95 budget | 2000 ms |
+| Actual p95 | < 50 ms per item |
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `backend/embed_cache.py` | SQLite embedding cache with thread safety + WAL |
+| `eval/run_eval_parallel.py` | Parallel eval runner with latency stats |
+| `backend/tests/test_day16_cache.py` | 46 tests (cache, batch, thread safety, parallel eval) |
+
+### Run
+
+```bash
+uv run python -m eval.run_eval_parallel \
+    --dataset data/attacks_v2.jsonl \
+    --workers 4 \
+    --budget_ms 200
+uv run python -m pytest backend/tests/test_day16_cache.py -v
+```
+
+### Result
+
+- **557/557 total tests pass** (all days).
+- Cache eliminates SHA-256 recomputation for repeated texts across an eval run.
+- `SemanticDetector` gains optional cache + `batch_check` with no change to existing callers.
+- Parallel eval runner verified to score 5 cases in well under 2 s p95 on a single process.
+
+
+## Day 17 — Hardening + Tests
+
+### Goal
+
+Make it look like production code, not a hackathon repo: typed schemas, property-based tests, comprehensive unit test coverage.
+
+### What was added
+
+**Pydantic schemas** (`backend/schemas.py`):
+- API response models: `RunSummary`, `RunDetail`, `CaseDetail`, `TurnDetail`, `DetectorFlags`, `MetricsResponse`, `CalibrationSummary`
+- Eval pipeline models: `EvalCase`, `AttackCaseInput`, `CalibrationCurvePoint`, `CalibrationReport`, `ScoringResult`
+- Field constraints (`ge`, `le`), `field_validator`, `model_validator` (`asr == 1 - tpr`)
+- API endpoints wired with `response_model=` annotations for automatic validation
+
+**Property-based tests** (`eval/tests/test_day17_property.py`):
+- Hypothesis-driven: 50+ examples per strategy, `too_slow` health check suppressed
+- `AttackMutator` invariants: no crash, non-empty output, bounded length (≤ 10× input)
+- Schema invariants: `EvalCase` rejects empty payloads; `CalibrationCurvePoint` enforces `asr = 1 - tpr`
+- `AttackCaseInput` rejects invalid `attack_type` values on arbitrary inputs
+
+**Hardening unit tests** (`backend/tests/test_day17_hardening.py`):
+- `PolicyEngine`: 16 tests covering all decision branches (allow, block, rewrite, downgrade)
+- `ToolGate`: 15 tests covering intent classification, tool permission matrix, downgrade threshold, blocked state
+- `ArgSanitizer`: 9 tests covering length cap, channel allowlist, URL domain allowlist, control-char stripping
+- Dataset loader: 6 tests (JSONL parsing, blank lines, unicode, empty file)
+- Pydantic schemas: 11 tests verifying field constraints and model validators
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `backend/schemas.py` | Pydantic models for API responses and eval pipeline inputs |
+| `eval/tests/test_day17_property.py` | Property tests with Hypothesis |
+| `backend/tests/test_day17_hardening.py` | Unit tests for policy engine, tool gate, dataset loader, schemas |
+
+### Run
+
+```bash
+uv add --dev hypothesis   # already in pyproject.toml after this day
+uv run python -m pytest backend/tests/test_day17_hardening.py eval/tests/test_day17_property.py -v
+```
+
+### Result
+
+- **644/644 total tests pass** (all days).
+- Pydantic `response_model` annotations enforce output schema on every API call.
+- Property tests verify mutation strategies never crash or produce empty output over 50+ random inputs.
+- Hypothesis discovered and fixed one edge case: `mutate_all` intentionally skips `ENCODE_KEYWORDS`.
+
+
 ## Key idea
 
 Prompt injection is not a string-matching problem.

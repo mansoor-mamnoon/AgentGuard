@@ -120,13 +120,13 @@ def _run_row(run: dict[str, Any]) -> str:
     policy_str = policy.get("action", "—") if policy else "—"
 
     return f"""
-    <tr class="run-row" data-run-id="{run['run_id']}" onclick="showRun('{run['run_id']}')">
-      <td><code>{run['run_id'][:10]}</code></td>
-      <td>{run['attack_id'] or '—'}</td>
-      <td>{_badge(run['mode'], mode_color)}</td>
+    <tr class="run-row" data-run-id="{run["run_id"]}" onclick="showRun('{run["run_id"]}')">
+      <td><code>{run["run_id"][:10]}</code></td>
+      <td>{run["attack_id"] or "—"}</td>
+      <td>{_badge(run["mode"], mode_color)}</td>
       <td>{_badge(status, color)}</td>
-      <td>{_format_score(max_drift)}{' 🚩' if flagged_any else ''}</td>
-      <td>{gate_str or '—'}</td>
+      <td>{_format_score(max_drift)}{" 🚩" if flagged_any else ""}</td>
+      <td>{gate_str or "—"}</td>
       <td>{policy_str}</td>
     </tr>"""
 
