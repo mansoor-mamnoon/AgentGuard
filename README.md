@@ -1,5 +1,16 @@
 # LLMFirewall
 
+![Python](https://img.shields.io/badge/Python-3.13%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)
+![Security](https://img.shields.io/badge/Security-Prompt%20Injection-red)
+![LLM Agents](https://img.shields.io/badge/LLM%20Agents-Tool%20Safety-purple)
+![Prompt Injection Defense](https://img.shields.io/badge/Prompt%20Injection-Defense-critical)
+![Agent Security](https://img.shields.io/badge/Agent%20Security-Control%20Flow%20Integrity-orange)
+![Evaluation](https://img.shields.io/badge/Eval-Ablations%20%2B%20Calibration-success)
+![Latency](https://img.shields.io/badge/Latency-sub--ms-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-674%20passing-success)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
+
 > Prompt injection is not a string-matching problem. It is a control-flow integrity problem for natural-language programs.
 
 A production-grade defense framework for prompt injection in tool-using LLM agents. Four independent signal layers feed a calibrated scorer that blocks injection attacks — including synonym-evading variants that bypass regex — at sub-millisecond latency with a controlled false-positive rate.
