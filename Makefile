@@ -1,4 +1,5 @@
-.PHONY: install test lint format eval calibrate ablation report all clean
+.PHONY: install test lint format eval calibrate ablation report all clean \
+        benchmarks bench demo baselines gate-ablation adaptive-redteam
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,57 @@ format:
 	uv run ruff format .
 	uv run black .
 
-# ── Evaluation pipeline ───────────────────────────────────────────────────────
+# ── Benchmark suite (Parts 1 & 8) ────────────────────────────────────────────
+
+# Generate all 4 200 benchmark cases
+benchmarks:
+	uv run python -m benchmarks.generate
+	@echo "Generated benchmarks/agentdojo/benign.jsonl (1 000)"
+	@echo "Generated benchmarks/agentdojo/direct_attacks.jsonl (1 000)"
+	@echo "Generated benchmarks/custom_enterprise_rag/indirect_attacks.jsonl (1 000)"
+	@echo "Generated benchmarks/tool_exfiltration/attacks.jsonl (500)"
+	@echo "Generated benchmarks/multi_turn/attacks.jsonl (500)"
+	@echo "Generated benchmarks/benign_hard_negatives/negatives.jsonl (200)"
+
+# Run benchmark evaluation across all five families
+bench-suite:
+	uv run python -m benchmarks.run_benchmarks
+
+# Baseline comparison (Part 8)
+baselines:
+	uv run python -m eval.baselines --json data/baseline_results.json
+
+# Tool-gate ablation (Part 3)
+gate-ablation:
+	uv run python -m eval.eval_tool_gating
+
+# Adaptive red-team (Part 6)
+adaptive-redteam:
+	uv run python -m eval.adaptive_redteam
+
+# ── Latency benchmarks (Part 9) ───────────────────────────────────────────────
+
+bench:
+	uv run python -m bench.bench_latency
+	uv run python -m bench.bench_cache
+
+bench-throughput:
+	uv run python -m bench.bench_throughput --n 500 --workers 4
+
+# ── Demo (Part 10) ────────────────────────────────────────────────────────────
+
+demo:
+	uv run python -m demo.run_demo --scenario 0
+
+demo-all:
+	uv run python -m demo.run_demo --all
+
+# ── MCP Security Proxy ────────────────────────────────────────────────────────
+
+mcp-demo:
+	uv run python -m demo.mcp_proxy_demo
+
+# ── Legacy evaluation pipeline ────────────────────────────────────────────────
 
 # Step 1: calibrate thresholds against the validation set
 calibrate:
@@ -51,12 +102,12 @@ eval: calibrate ablation report
 	@echo "  Ablation    : data/ablation_report.json"
 	@echo "  Report      : data/report.html"
 
-# Run everything (install + test + eval)
-all: install test eval
+# Run everything (install + test + benchmarks + eval)
+all: install test benchmarks bench-suite eval
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
-	rm -f data/calibration_report.json data/ablation_report.json data/report.html
+	rm -f data/calibration_report.json data/ablation_report.json data/report.html data/baseline_results.json

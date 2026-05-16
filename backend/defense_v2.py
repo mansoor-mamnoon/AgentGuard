@@ -47,6 +47,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.context_classifier import classify_context
 from backend.messages import MessageSegment, trust_for_source
 from backend.policy_engine import PolicyEngine
 from backend.semantic_detector import SemanticDetector
@@ -202,6 +203,14 @@ class DefenseV2:
 
         # 4. Doc instruction density
         density = _doc_density(segments)
+
+        # 5. Context adjustment — separate "mentioning dangerous concepts" from
+        #    "issuing dangerous instructions" via the 3-factor rule.
+        #    Only applies to the user text; doc/tool-output injections are scored
+        #    independently and not dampened (they are never educational context).
+        ctx = classify_context(user_text)
+        heuristic = heuristic * ctx.heuristic_multiplier
+        max_drift = max_drift * ctx.semantic_multiplier
 
         return DefenseV2Signals(
             heuristic_score=heuristic,

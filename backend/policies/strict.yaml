@@ -1,0 +1,95 @@
+# LLMFirewall strict policy — high-security environments
+# No write tools permitted from any user-originated intent.
+# All external writes require explicit system-level pre-authorization.
+
+tools:
+  search_docs:
+    effect: read_private
+    allowed_sources:
+      - SYSTEM_TRUSTED
+      - USER_UNTRUSTED
+    allowed_intents:
+      - search
+      - summarize
+      - email
+      - unknown
+
+  read_email:
+    effect: read_private
+    allowed_sources:
+      - SYSTEM_TRUSTED
+      - USER_UNTRUSTED
+    allowed_intents:
+      - email
+      - summarize
+
+  send_email:
+    effect: write_external
+    allowed_sources:
+      - SYSTEM_TRUSTED
+    forbidden_inputs:
+      - RAG_UNTRUSTED
+      - TOOL_OUTPUT
+      - SECRET
+      - USER_UNTRUSTED
+    requires:
+      - system_preauthorization
+      - explicit_recipient_allowlist
+
+  post_slack:
+    effect: write_external
+    allowed_sources:
+      - SYSTEM_TRUSTED
+    forbidden_inputs:
+      - RAG_UNTRUSTED
+      - TOOL_OUTPUT
+      - SECRET
+      - USER_UNTRUSTED
+    requires:
+      - system_preauthorization
+      - channel_allowlist
+
+  read_calendar:
+    effect: read_private
+    allowed_sources:
+      - SYSTEM_TRUSTED
+      - USER_UNTRUSTED
+    allowed_intents:
+      - calendar
+
+  create_calendar_event:
+    effect: write_internal
+    allowed_sources:
+      - SYSTEM_TRUSTED
+    forbidden_inputs:
+      - RAG_UNTRUSTED
+      - TOOL_OUTPUT
+      - USER_UNTRUSTED
+
+  read_secret:
+    effect: read_sensitive
+    allowed_sources:
+      - SYSTEM_TRUSTED
+    forbidden_inputs:
+      - RAG_UNTRUSTED
+      - TOOL_OUTPUT
+      - USER_UNTRUSTED
+
+  transfer_money:
+    effect: write_external
+    allowed_sources:
+      - SYSTEM_TRUSTED
+    forbidden_inputs:
+      - RAG_UNTRUSTED
+      - TOOL_OUTPUT
+      - USER_UNTRUSTED
+    requires:
+      - system_preauthorization
+      - dual_approval
+      - amount_limit_100
+
+global_rules:
+  max_arg_length: 200
+  allowed_external_domains: []
+  block_on_external_url_in_args: true
+  fpr_budget: 0.05
