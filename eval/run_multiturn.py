@@ -30,12 +30,14 @@ from typing import Any
 
 from backend.messages import MessageSegment, trust_for_source
 from backend.policy_engine import PolicyEngine
+from backend.rewriter import PromptRewriter
 from backend.semantic_detector import SemanticDetector
 from backend.suspicion_tracker import SuspicionTracker, TurnSignals
 from backend.tool_gate import ToolGate
 
 _SEMANTIC_DETECTOR = SemanticDetector()
 _TOOL_GATE = ToolGate()
+_REWRITER = PromptRewriter()
 
 # Tools kept in read-only (downgrade) mode
 _READ_ONLY = {"search_docs"}
@@ -71,6 +73,7 @@ class TurnOutcome:
     signals: TurnSignals
     allowed_tools: list[str]
     blocked: bool
+    rewritten_text: str | None = None  # set when rewrite strategy was applied
 
 
 @dataclass
@@ -141,6 +144,8 @@ def process_turn(
     level = tracker.restriction_level()
 
     # 5. Apply tracker restriction level to determine actual tools and block status
+    rewritten_text: str | None = None
+
     if level == "block":
         actual_tools: list[str] = []
         blocked = True
@@ -148,8 +153,15 @@ def process_turn(
         # More aggressive than gate alone: only read-only tools
         actual_tools = [t for t in gate_decision.allowed_tools if t in _READ_ONLY]
         blocked = False
+    elif level == "rewrite":
+        # Sanitize the prompt; still permitted with gated tool set
+        rw_result = _REWRITER.rewrite(turn_text)
+        if rw_result.changed:
+            rewritten_text = rw_result.rewritten
+        actual_tools = gate_decision.allowed_tools
+        blocked = False
     else:
-        # "allow" or "rewrite": use the gate's decision (post_message already absent)
+        # "allow": use the gate's decision (post_message already absent)
         actual_tools = gate_decision.allowed_tools
         blocked = False
 
@@ -161,6 +173,7 @@ def process_turn(
         signals=signals,
         allowed_tools=actual_tools,
         blocked=blocked,
+        rewritten_text=rewritten_text,
     )
 
 
